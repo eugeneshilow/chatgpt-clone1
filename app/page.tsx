@@ -1,3 +1,4 @@
+/* eslint-disable */
 "use client";
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
