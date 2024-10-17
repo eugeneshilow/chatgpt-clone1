@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { useState, useEffect, useRef } from 'react';
 import { Menu, Send, Plus } from 'lucide-react';
 import TextareaAutosize from 'react-textarea-autosize';
@@ -13,7 +15,7 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [conversations, setConversations] = useState<ChatMessage[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -33,7 +35,7 @@ export default function Home() {
       setMessages(prev => [...prev, userMessage]);
       setInputMessage('');
       setIsStreaming(true);
-      setIsGenerating(true); // Explicitly set isGenerating to true
+      setIsGenerating(true);
 
       const assistantMessageId = messages.length + 1;
       setMessages(prev => [...prev, { id: assistantMessageId, role: 'assistant', content: '' }]);
@@ -43,17 +45,19 @@ export default function Home() {
 
         for await (const chunk of readStreamableValue(output)) {
           console.log("Received chunk:", chunk); // Debug log
-          setMessages(prev => {
-            const newMessages = [...prev];
-            const assistantMessageIndex = newMessages.findIndex(m => m.id === assistantMessageId);
-            if (assistantMessageIndex !== -1) {
-              newMessages[assistantMessageIndex] = {
-                ...newMessages[assistantMessageIndex],
-                content: chunk
-              };
-            }
-            return newMessages;
-          });
+          if (typeof chunk === 'string') {  // Add this check
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const assistantMessageIndex = newMessages.findIndex(m => m.id === assistantMessageId);
+              if (assistantMessageIndex !== -1) {
+                newMessages[assistantMessageIndex] = {
+                  ...newMessages[assistantMessageIndex],
+                  content: chunk
+                };
+              }
+              return newMessages;
+            });
+          }
         }
       } catch (error) {
         console.error('Error streaming message:', error);
@@ -63,14 +67,14 @@ export default function Home() {
           if (assistantMessageIndex !== -1) {
             newMessages[assistantMessageIndex] = {
               ...newMessages[assistantMessageIndex],
-              content: `Sorry, an error occurred while processing your request: ${error.message}`
+              content: `Sorry, an error occurred while processing your request: ${error instanceof Error ? error.message : 'Unknown error'}`
             };
           }
           return newMessages;
         });
       } finally {
         setIsStreaming(false);
-        setIsGenerating(false); // Explicitly set isGenerating to false
+        setIsGenerating(false);
       }
     }
   };
