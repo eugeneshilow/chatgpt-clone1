@@ -33,6 +33,7 @@ export default function Home() {
       setMessages(prev => [...prev, userMessage]);
       setInputMessage('');
       setIsStreaming(true);
+      setIsGenerating(true); // Explicitly set isGenerating to true
 
       const assistantMessageId = messages.length + 1;
       setMessages(prev => [...prev, { id: assistantMessageId, role: 'assistant', content: '' }]);
@@ -69,6 +70,7 @@ export default function Home() {
         });
       } finally {
         setIsStreaming(false);
+        setIsGenerating(false); // Explicitly set isGenerating to false
       }
     }
   };
@@ -78,7 +80,7 @@ export default function Home() {
       <style>{`
         @keyframes pulse {
           0% { transform: scale(0.8); opacity: 0.5; }
-          50% { transform: scale(1.2); opacity: 1; }
+           50% { transform: scale(1.2); opacity: 1; }
           100% { transform: scale(0.8); opacity: 0.5; }
         }
         .typing-dot {
