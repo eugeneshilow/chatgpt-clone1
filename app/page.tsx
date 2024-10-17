@@ -1,101 +1,276 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useRef } from 'react';
+import { Menu, Send } from 'lucide-react';
+import TextareaAutosize from 'react-textarea-autosize';
+import { streamMessage, ChatMessage } from '../actions/stream-message';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { readStreamableValue } from 'ai/rsc';
+import { ThreeDots } from 'react-loading-icons';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [isSidebarVisible, setSidebarVisible] = useState(true);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const toggleSidebar = () => setSidebarVisible(!isSidebarVisible);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(scrollToBottom, [messages]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputMessage.trim() && !isStreaming) {
+      const userMessage: ChatMessage = { id: messages.length, role: 'user', content: inputMessage };
+      setMessages(prev => [...prev, userMessage]);
+      setInputMessage('');
+      setIsStreaming(true);
+
+      const assistantMessageId = messages.length + 1;
+      setMessages(prev => [...prev, { id: assistantMessageId, role: 'assistant', content: '' }]);
+
+      try {
+        const { output } = await streamMessage([...messages, userMessage]);
+
+        for await (const chunk of readStreamableValue(output)) {
+          console.log("Received chunk:", chunk); // Debug log
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const assistantMessageIndex = newMessages.findIndex(m => m.id === assistantMessageId);
+            if (assistantMessageIndex !== -1) {
+              newMessages[assistantMessageIndex] = {
+                ...newMessages[assistantMessageIndex],
+                content: chunk
+              };
+            }
+            return newMessages;
+          });
+        }
+      } catch (error) {
+        console.error('Error streaming message:', error);
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const assistantMessageIndex = newMessages.findIndex(m => m.id === assistantMessageId);
+          if (assistantMessageIndex !== -1) {
+            newMessages[assistantMessageIndex] = {
+              ...newMessages[assistantMessageIndex],
+              content: `Sorry, an error occurred while processing your request: ${error.message}`
+            };
+          }
+          return newMessages;
+        });
+      } finally {
+        setIsStreaming(false);
+      }
+    }
+  };
+
+  return (
+    <>
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(0.8); opacity: 0.5; }
+          50% { transform: scale(1.2); opacity: 1; }
+          100% { transform: scale(0.8); opacity: 0.5; }
+        }
+        .typing-dot {
+          width: 10px;
+          height: 10px;
+          background-color: #10a37f;
+          border-radius: 50%;
+          display: inline-block;
+          margin: 0 3px;
+        }
+        .typing-dot:nth-child(1) { animation: pulse 1.5s infinite 0s; }
+        .typing-dot:nth-child(2) { animation: pulse 1.5s infinite 0.3s; }
+        .typing-dot:nth-child(3) { animation: pulse 1.5s infinite 0.6s; }
+      `}</style>
+      <div style={{ display: 'flex', height: '100vh', fontFamily: 'Arial, sans-serif' }}>
+        {/* Sidebar toggle and content */}
+        <div style={{ position: 'relative' }}>
+          <Menu
+            onClick={toggleSidebar}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '10px',
+              cursor: 'pointer',
+              color: '#333',
+              zIndex: 1,
+            }}
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        {isSidebarVisible && (
+          <div style={{ width: '300px', backgroundColor: '#f7f7f8', borderRight: '1px solid #e0e0e0', padding: '20px' }}>
+            {/* Sidebar content */}
+          </div>
+        )}
+        
+        <div style={{ flex: 1, backgroundColor: '#fff', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+            {messages.map((message) => (
+              <div key={message.id} style={{
+                display: 'flex',
+                padding: '20px 0',
+                borderBottom: '1px solid #e5e5e5',
+              }}>
+                <div style={{
+                  backgroundColor: message.role === 'user' ? '#5436DA' : '#10a37f',
+                  color: '#fff',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '3px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: '15px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                }}>
+                  {message.role === 'user' ? 'U' : 'A'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ))}
+            {isGenerating && <TypingIndicator />}
+            <div ref={messagesEndRef} />
+          </div>
+          
+          <form onSubmit={handleSendMessage} style={{ 
+            borderTop: '1px solid #e5e5e5', 
+            padding: '20px', 
+            backgroundColor: '#fff', 
+            maxWidth: '800px',
+            margin: '0 auto',
+            width: '100%',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              border: '1px solid #e5e5e5',
+              borderRadius: '5px',
+              padding: '8px',
+              boxShadow: '0 0 10px rgba(0,0,0,0.1)',
+            }}>
+              <TextareaAutosize
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage(e);
+                  }
+                }}
+                minRows={1}
+                maxRows={5}
+                placeholder="Send a message"
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '16px',
+                  resize: 'none',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={isStreaming}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '5px',
+                }}
+              >
+                <Send size={20} color="#10a37f" />
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div style={{
+      display: 'flex',
+      padding: '20px 0',
+      borderBottom: '1px solid #e5e5e5',
+    }}>
+      <div style={{
+        backgroundColor: '#10a37f',
+        color: '#fff',
+        width: '30px',
+        height: '30px',
+        borderRadius: '3px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: '15px',
+        fontSize: '14px',
+        fontWeight: 'bold',
+      }}>
+        A
+      </div>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+        <div className="typing-dot"></div>
+        <div className="typing-dot"></div>
+        <div className="typing-dot"></div>
+      </div>
     </div>
   );
 }
+
+// Add this CSS to your global styles or as a styled-component
+const styles = `
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+  }
+
+  .typing-indicator span {
+    height: 8px;
+    width: 8px;
+    background-color: #10a37f;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+    animation: typing 1s infinite ease-in-out;
+  }
+
+  .typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes typing {
+    0% {
+      transform: translateY(0px);
+    }
+    28% {
+      transform: translateY(-7px);
+    }
+    44% {
+      transform: translateY(0px);
+    }
+  }
+`;
