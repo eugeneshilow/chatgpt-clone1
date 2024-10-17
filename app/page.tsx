@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Menu, Send } from 'lucide-react';
+import { Menu, Send, Plus } from 'lucide-react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { streamMessage, ChatMessage } from '../actions/stream-message';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { readStreamableValue } from 'ai/rsc';
-import { ThreeDots } from 'react-loading-icons';
 
 export default function Home() {
   const [isSidebarVisible, setSidebarVisible] = useState(true);
@@ -15,6 +14,8 @@ export default function Home() {
   const [inputMessage, setInputMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [conversations, setConversations] = useState<ChatMessage[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const toggleSidebar = () => setSidebarVisible(!isSidebarVisible);
@@ -207,6 +208,16 @@ export default function Home() {
 }
 
 function TypingIndicator() {
+  const [dots, setDots] = useState('');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(prev => prev.length >= 3 ? '' : prev + '.');
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div style={{
       display: 'flex',
@@ -236,41 +247,3 @@ function TypingIndicator() {
     </div>
   );
 }
-
-// Add this CSS to your global styles or as a styled-component
-const styles = `
-  .typing-indicator {
-    display: flex;
-    align-items: center;
-  }
-
-  .typing-indicator span {
-    height: 8px;
-    width: 8px;
-    background-color: #10a37f;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 5px;
-    animation: typing 1s infinite ease-in-out;
-  }
-
-  .typing-indicator span:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-
-  .typing-indicator span:nth-child(3) {
-    animation-delay: 0.4s;
-  }
-
-  @keyframes typing {
-    0% {
-      transform: translateY(0px);
-    }
-    28% {
-      transform: translateY(-7px);
-    }
-    44% {
-      transform: translateY(0px);
-    }
-  }
-`;
